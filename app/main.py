@@ -54,7 +54,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # 3. Audit Logger: Log all critical requests (login, diagnose, admin actions)
-# app.middleware("http")(audit_middleware)  # Uncomment if audit_logger.py is implemented
+app.middleware("http")(audit_middleware)  
 
 # 4. Rate Limiting: Prevent DoS attacks (10 requests/60s per authenticated user)
 app.middleware("http")(rate_limit_middleware)

@@ -32,4 +32,7 @@ Thumbs.db
 htmlcov/
 
 # Docker
-.dockerenv
+.dockerenvserver.key
+server.crt
+server.crt
+server.key

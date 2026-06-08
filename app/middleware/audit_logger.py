@@ -28,9 +28,10 @@ async def audit_middleware(request: Request, call_next):
                 user_id=user_id,
                 action=request.method,
                 endpoint=request.url.path,
-                http_status=response.status_code,
+                http_status_code=response.status_code,
                 ip_address=request.client.host,
-                detail=f"User-Agent: {request.headers.get('User-Agent', 'Unknown')}"
+                user_agent=request.headers.get("User-Agent", "Unknown"),
+                details=f"User-Agent: {request.headers.get('User-Agent', 'Unknown')}"
             )
             db.add(log_entry)
             await db.commit()
