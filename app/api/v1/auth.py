@@ -49,6 +49,22 @@ async def login_user(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
     # 2. Issue JWT
     return create_access_token(user_id=str(user.id), role=user.role)
 
+# Refresh Token and Logout
+@router.post("/refresh")
+async def refresh_token(current_user: User = Depends(get_current_user)):
+
+    """
+    Issues a fresh JWT access Token. (Stateless rotation: validation existing token, returns new pair.)
+    """
+    return create_access_token(user_id=str(current_user.id), role=current_user.role)
+
+@router.post("/logout", status_code=200)
+async def logout_user(current_user: User = Depends(get_current_user)):
+    """
+    Logs out the current user.
+    """
+    # Implementation for logout (e.g., invalidate token, clear session)
+    return {"message": "Logged out successfully"}
 
 # Added to test rate limit for temporary purposes 
 @router.get("/test-rate-limit")
