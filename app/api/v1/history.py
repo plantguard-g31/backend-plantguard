@@ -1,0 +1,89 @@
+from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.base import get_db
+from app.db.models import DiagnosisHistory, TreatmentRecord, User
+from app.core.dependencies import get_current_user
+
+router = APIRouter(prefix="/history", tags=["History"])
+
+@router.get("/")
+async def get_user_history(
+    limit: int = Query(10, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieve paginated diagnosis history for authenticated user."""
+    try:
+        result = await db.execute(
+            select(
+                DiagnosisHistory,
+                TreatmentRecord.disease_name,
+                TreatmentRecord.crop_type
+            )
+            .join(TreatmentRecord, DiagnosisHistory.treatment_id == TreatmentRecord.id, isouter=True)
+            .where(DiagnosisHistory.user_id == current_user.id)
+            .order_by(DiagnosisHistory.diagnosed_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        records = result.all()
+        
+        return {
+            "total": len(records),
+            "limit": limit,
+            "offset": offset,
+            "has_more": len(records) == limit,
+            "items": [
+                {
+                    "id": str(h.id),
+                    "disease": d_name or "Unknown",  # Handle NULL treatment_id
+                    "crop": d_crop or "Unknown",
+                    "confidence": h.confidence_score,
+                    "severity": h.severity_level,
+                    "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
+                }
+                for h, d_name, d_crop in records
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
+
+@router.get("/{history_id}")
+async def get_history_item(
+    history_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieve a single diagnosis history record by ID."""
+    try:
+        result = await db.execute(
+            select(
+                DiagnosisHistory,
+                TreatmentRecord.disease_name,
+                TreatmentRecord.crop_type
+            )
+            .join(TreatmentRecord, DiagnosisHistory.treatment_id == TreatmentRecord.id, isouter=True)
+            .where(DiagnosisHistory.id == history_id)
+            .where(DiagnosisHistory.user_id == current_user.id)
+        )
+        row = result.first()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Diagnosis history not found")
+        
+        h, d_name, d_crop = row
+        return {
+            "id": str(h.id),
+            "disease": d_name or "Unknown",
+            "crop": d_crop or "Unknown",
+            "confidence": h.confidence_score,
+            "severity": h.severity_level,
+            "is_confidence_flag": h.is_confidence_flag,
+            "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history item: {str(e)}")
