@@ -12,6 +12,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+
+    # 0. Validate password confirmation
+    if user_data.password != user_data.confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="Password does not match"
+        )
+
     # 1. Check if email already exists
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalars().first():
@@ -19,7 +27,7 @@ async def register_user(user_data: UserCreate, db: AsyncSession = Depends(get_db
     
     # 2. Hash password & create user
     hashed_pw = hash_password(user_data.password)
-    new_user = User(email=user_data.email, hashed_password=hashed_pw, role="farmer")
+    new_user = User(name=user_data.name, email=user_data.email, hashed_password=hashed_pw, role="farmer")
     
     db.add(new_user)
     await db.commit()
