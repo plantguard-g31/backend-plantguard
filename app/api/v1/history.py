@@ -87,3 +87,34 @@ async def get_history_item(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch history item: {str(e)}")
+
+
+from fastapi import status # Ensure status is imported at the top of the file
+
+@router.delete("/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_history_item(
+    history_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """FR-17: Delete a diagnosis record. Scoped to authenticated user only."""
+    # 1. Find the record
+    result = await db.execute(
+        select(DiagnosisHistory).where(DiagnosisHistory.id == history_id)
+    )
+    record = result.scalars().first()
+    
+    # 2. Check if it exists
+    if not record:
+        raise HTTPException(status_code=404, detail="Diagnosis history not found")
+        
+    # 3. Security Check: Ensure user owns this record (Prevents IDOR vulnerability)
+    if str(record.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this record.")
+        
+    # 4. Delete and commit
+    await db.delete(record)
+    await db.commit()
+    
+    # 204 No Content means success, but returns empty body (saves bandwidth for 2G/3G)
+    return None 

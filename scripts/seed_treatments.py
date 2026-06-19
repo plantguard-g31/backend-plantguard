@@ -9,89 +9,78 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@local
 # Convert to sync asyncpg format
 DB_URL_SYNC = DB_URL.replace("postgresql+asyncpg://", "postgresql://")
 
-# Updated: One entry per (disease + crop), with all three severity dosages
+# SRS v3.1 Schema: We need 3 rows per disease (one for each severity level)
+# Columns match the new models.py: application_timing, safety_instructions, pre_harvest_interval_days, source_reference
 TREATMENTS = [
     {
-        "disease": "Tomato Early Blight",
-        "crop": "tomato",
-        "pesticide": "Copper Hydroxide 77% WP",
-        "dosage_mild": "2g per 1L water, spray every 7 days",
-        "dosage_moderate": "3g per 1L water, spray every 5 days + remove affected leaves",
-        "dosage_severe": "4g per 1L water + systemic fungicide rotation, destroy heavily infected plants",
-        "application": "Foliar spray in early morning or late evening",
-        "safety": "Wear gloves & mask. Do not harvest within 14 days. Avoid direct sunlight.",
-        "source": "FAO Plant Protection Manual 2023"
+        "disease": "Tomato Early Blight", "crop": "tomato", "pesticide": "Copper Hydroxide 77% WP",
+        "mild_dosage": "2g per 1L water, spray every 7 days",
+        "moderate_dosage": "3g per 1L water, spray every 5 days + remove affected leaves",
+        "severe_dosage": "4g per 1L water + systemic fungicide rotation, destroy heavily infected plants",
+        "timing": "Foliar spray in early morning or late evening",
+        "safety": "Wear gloves & mask. Do not harvest within 14 days.",
+        "interval_days": 14, "source": "FAO Plant Protection Manual 2023"
     },
     {
-        "disease": "Potato Late Blight",
-        "crop": "potato",
-        "pesticide": "Mancozeb 75% WP",
-        "dosage_mild": "2.5g per 1L water, spray every 7 days",
-        "dosage_moderate": "3g per 1L water, spray every 5 days + remove infected leaves",
-        "dosage_severe": "4g per 1L water + alternate with systemic fungicide, destroy heavily infected plants",
-        "application": "Foliar spray covering both sides of leaves",
-        "safety": "Wear protective clothing. Do not apply during flowering. Keep away from water sources.",
-        "source": "NARC Agriculture Guidelines 2024"
+        "disease": "Potato Late Blight", "crop": "potato", "pesticide": "Mancozeb 75% WP",
+        "mild_dosage": "2.5g per 1L water, spray every 7 days",
+        "moderate_dosage": "3g per 1L water, spray every 5 days + remove infected leaves",
+        "severe_dosage": "4g per 1L water + alternate with systemic fungicide, destroy heavily infected plants",
+        "timing": "Foliar spray covering both sides of leaves",
+        "safety": "Wear protective clothing. Do not apply during flowering.",
+        "interval_days": 21, "source": "NARC Agriculture Guidelines 2024"
     },
     {
-        "disease": "Bell Pepper Bacterial Spot",
-        "crop": "bell_pepper",
-        "pesticide": "Copper Oxychloride 50% WP",
-        "dosage_mild": "3g per 1L water, spray every 10 days",
-        "dosage_moderate": "4g per 1L water, spray every 7 days + prune affected branches",
-        "dosage_severe": "5g per 1L water + combine with biocontrol agent, remove severely infected plants",
-        "application": "Spray early morning when leaves are dry",
-        "safety": "Avoid contact with eyes. Wash hands after application. Store in cool, dry place.",
-        "source": "ICAR-Vegetable Research Institute 2023"
+        "disease": "Bell Pepper Bacterial Spot", "crop": "bell_pepper", "pesticide": "Copper Oxychloride 50% WP",
+        "mild_dosage": "3g per 1L water, spray every 10 days",
+        "moderate_dosage": "4g per 1L water, spray every 7 days + prune affected branches",
+        "severe_dosage": "5g per 1L water + combine with biocontrol agent, remove severely infected plants",
+        "timing": "Spray early morning when leaves are dry",
+        "safety": "Avoid contact with eyes. Wash hands after application.",
+        "interval_days": 10, "source": "ICAR-Vegetable Research Institute 2023"
     }
 ]
 
 async def seed():
-    """Connect to DB and insert seed treatments."""
+    """Connect to DB and insert seed treatments (3 rows per disease)."""
     conn = await asyncpg.connect(DB_URL_SYNC)
     try:
-        # Clear existing data (safe to re-run)
+        # Clear existing data safely
         await conn.execute("TRUNCATE treatment_records, treatment_translations RESTART IDENTITY CASCADE;")
         
         for t in TREATMENTS:
-            tid = str(uuid.uuid4())  # Generate unique ID for treatment record
-            
-            # Insert main treatment record with ALL three dosage columns
-            await conn.execute(
-                """INSERT INTO treatment_records 
-                   (id, disease_name, crop_type, pesticide_name, dosage_mild, dosage_moderate, dosage_severe, 
-                    application_method, safety_warning, source)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
-                tid, 
-                t["disease"], 
-                t["crop"], 
-                t["pesticide"], 
-                t["dosage_mild"], 
-                t["dosage_moderate"], 
-                t["dosage_severe"], 
-                t["application"], 
-                t["safety"], 
-                t["source"]
-            )
-            
-            # Insert Nepali translations for key fields
-            trans_fields = [
-                ("pesticide_name", t.get("pesticide_ne", t["pesticide"])),
-                ("dosage", t.get("dosage_ne", t["dosage_moderate"])),
-                ("safety_warning", t.get("safety_ne", t["safety"]))
-            ]
-            
-            for field_name, translated_text in trans_fields:
-                trans_id = str(uuid.uuid4())
+            # Insert 3 rows per disease (Mild, Moderate, Severe)
+            for severity, dosage in [("mild", t["mild_dosage"]), ("moderate", t["moderate_dosage"]), ("severe", t["severe_dosage"])]:
+                tid = str(uuid.uuid4())
                 await conn.execute(
-                    """INSERT INTO treatment_translations (id, treatment_id, language_code, field_name, translated_text)
-                       VALUES ($1, $2, 'ne', $3, $4)""",
-                    trans_id, tid, field_name, translated_text
+                    """INSERT INTO treatment_records
+                    (id, disease_name, crop_type, severity_level, pesticide_name, 
+                     dosage_mild, dosage_moderate, dosage_severe, application_timing, 
+                     safety_instructions, pre_harvest_interval_days, source_reference, is_active)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE)""",
+                    tid, t["disease"], t["crop"], severity, t["pesticide"],
+                    t["mild_dosage"], t["moderate_dosage"], t["severe_dosage"], 
+                    t["timing"], t["safety"], t["interval_days"], t["source"]
                 )
-        
-        print("Database seeded successfully with expert-verified treatments.")
+                
+                # Insert Nepali translations for this specific treatment record
+                trans_fields = [
+                    ("pesticide_name", t["pesticide"]),
+                    ("safety_instructions", t["safety"])
+                ]
+                for field_name, translated_text in trans_fields:
+                    trans_id = str(uuid.uuid4())
+                    await conn.execute(
+                        """INSERT INTO treatment_translations 
+                        (id, treatment_record_id, language_code, disease_name_translated, 
+                         treatment_instructions_translated, safety_warnings_translated)
+                        VALUES ($1, $2, 'ne', $3, $4, $5)""",
+                        trans_id, tid, t["disease"], translated_text, translated_text
+                    )
+
+        print("✅ Database seeded successfully with 9 expert-verified treatment records (3 per disease).")
     except Exception as e:
-        print(f"Seeding failed: {e}")
+        print(f"❌ Seeding failed: {e}")
         raise
     finally:
         await conn.close()

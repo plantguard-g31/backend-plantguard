@@ -2,12 +2,13 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from datetime import datetime, timezone
 import logging
 
 # Import routers
 from app.api.v1 import auth, diagnosis, history, admin
- 
-
+from app.api.v1 import analytics
+from app.api.v1 import user
 
 # Import middleware and handlers
 from app.middleware.error_handler import register_error_handlers
@@ -75,6 +76,12 @@ app.include_router(history.router, prefix="/api/v1", tags=["History"])
 # Admin endpoints: /api/v1/admin/treatments, /audit-logs
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 
+# Analytics endpoints: /api/v1/analytics, /api/v1/analytics/crop/{type} 
+app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
+
+from app.api.v1 import user
+app.include_router(user.router, prefix="/api/v1", tags=["User Settings"])
+
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLERS & GLOBAL CONFIG
 # ─────────────────────────────────────────────────────────────
@@ -119,15 +126,18 @@ def health_check():
     """
     return {"status": "ok", "service": "PlantGuard Backend"}
 
-@app.get("/healthz", tags=["Health"])
-def healthz():
+from datetime import datetime, timezone # Ensure this is imported at the top
+
+@app.get("/api/v1/health", tags=["Health"])
+def health_check():
     """
-    Extended health check (can add DB/AI connectivity checks here).
+    FR-23: Keep-alive health check for Render.com.
+    Returns status, ISO timestamp, and version in <50ms. No auth required.
     """
     return {
-        "status": "healthy",
-        "version": "1.0.0",
-        "endpoints": ["/docs", "/redoc", "/openapi.json"]
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "3.1"
     }
 
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)

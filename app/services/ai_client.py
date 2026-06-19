@@ -112,12 +112,18 @@ async def predict_disease(image_bytes: bytes, filename: str = "leaf.jpg") -> Opt
         # Simulate inference delay (0.5 seconds)
         await asyncio.sleep(0.5)
         
-        # Mock prediction - simulates real model output
+        # Return Top-3 predictions as required by SRS v3.1 FR-13
         return {
             "disease": "Tomato Early Blight",
             "confidence": 0.88,
-            "class_id": 0
+            "top3": [
+                {"label": "Tomato Early Blight", "confidence": 0.88},
+                {"label": "Tomato Late Blight", "confidence": 0.07},
+                {"label": "Tomato Septoria Leaf Spot", "confidence": 0.03}
+            ]
         }
+    
+
     '''
     # ─────────────────────────────────────────────────────────────
     # REAL MODEL MODE (When Ready)

@@ -1,52 +1,70 @@
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models import DiagnosisHistory, TreatmentRecord
+from app.db.models import DiagnosisHistory
 from datetime import datetime, timedelta
 
-async def get_diagnosis_analytics(user_id: str, db: AsyncSession) -> dict:
+async def get_diagnosis_analytics(user_id: str, db: AsyncSession, crop_type: str = None) -> dict:
     """
-    Analyzes user's diagnosis history for the last 30 days.
-    Returns disease frequency and spreading warnings.
-    
-    NOTE: DiagnosisHistory no longer stores disease_name directly.
-    We JOIN with TreatmentRecord to get disease info via FK.
+    SRS v3.1 FR-18 & FR-18b: 30-Day Disease Frequency Analytics.
+    Aggregates DIAGNOSIS_HISTORY for the authenticated user's last 30 days.
+    Optionally filters by crop_type (FR-18b).
     """
     # Calculate cutoff date (30 days ago)
     cutoff = datetime.utcnow() - timedelta(days=30)
     
-    # Query diagnoses for this user in last 30 days
-    # JOIN with TreatmentRecord to get disease_name via FK
-    result = await db.execute(
-        select(
-            TreatmentRecord.disease_name,  #  Get disease_name from TreatmentRecord
-            func.count(DiagnosisHistory.id).label('count')
+    # Base query: all diagnoses for this user in the last 30 days
+    query = select(DiagnosisHistory).where(
+        and_(
+            DiagnosisHistory.user_id == user_id,
+            DiagnosisHistory.diagnosed_at >= cutoff
         )
-        .join(
-            TreatmentRecord,
-            DiagnosisHistory.treatment_id == TreatmentRecord.id  #  Join via FK
-        )
-        .where(
-            and_(
-                DiagnosisHistory.user_id == user_id,
-                DiagnosisHistory.diagnosed_at >= cutoff  #  Use diagnosed_at (not created_at)
-            )
-        )
-        .group_by(TreatmentRecord.disease_name)  # Group by disease_name from TreatmentRecord
     )
     
-    rows = result.all()
-    disease_frequency = {row[0]: row[1] for row in rows}
+    # Apply crop filter if provided (FR-18b: Per-Crop Analytics)
+    if crop_type:
+        query = query.where(DiagnosisHistory.crop_type == crop_type)
+        
+    result = await db.execute(query)
+    records = result.scalars().all()
     
-    # Check for spreading disease warning (same disease ≥3 times)
-    spreading_warning = None
-    for disease, count in disease_frequency.items():
-        if count >= 3:
-            spreading_warning = f"{disease} detected {count} times in 30 days. Consider consulting an expert."
-            break  # Report first warning only
+    # 1. Calculate basic counts
+    total_diagnoses = len(records)
+    healthy_count = sum(1 for r in records if "Healthy" in r.disease_label)
+    diseased_count = total_diagnoses - healthy_count
     
+    # 2. Calculate disease frequency (excluding healthy plants)
+    freq_map = {}
+    for r in records:
+        if "Healthy" not in r.disease_label:
+            freq_map[r.disease_label] = freq_map.get(r.disease_label, 0) + 1
+            
+    # 3. Format for API response: list of dicts sorted by count descending
+    disease_frequency = [
+        {"disease_label": k, "count": v} 
+        for k, v in sorted(freq_map.items(), key=lambda item: item[1], reverse=True)
+    ]
+    
+    # 4. Most common disease
+    most_common_disease = disease_frequency[0]["disease_label"] if disease_frequency else None
+    
+    # 5. Spreading-Disease Urgency Alert (SRS v3.1 FR-18)
+    # Fires when any single disease_label appears >= 3 times within the 30-day window
+    spreading_alert = {"triggered": False, "disease_label": None, "count": 0}
+    for item in disease_frequency:
+        if item["count"] >= 3:
+            spreading_alert = {
+                "triggered": True, 
+                "disease_label": item["disease_label"], 
+                "count": item["count"]
+            }
+            break # Only report the most frequent spreading disease
+            
     return {
-        "period_days": 30,
-        "total_diagnoses": sum(disease_frequency.values()),
+        "total_diagnoses": total_diagnoses,
+        "healthy_count": healthy_count,
+        "diseased_count": diseased_count,
         "disease_frequency": disease_frequency,
-        "spreading_warning": spreading_warning
+        "disease_frequency_dict": freq_map, # Kept for internal use by diagnosis.py severity logic
+        "most_common_disease": most_common_disease,
+        "spreading_alert": spreading_alert
     }

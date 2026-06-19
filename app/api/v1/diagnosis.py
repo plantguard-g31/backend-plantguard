@@ -18,9 +18,9 @@ router = APIRouter(prefix="/diagnose", tags=["Diagnosis Pipeline"])
 @router.post("/")
 async def run_diagnosis(
     file: UploadFile = File(...),
-    lang: str = Query(default="en", regex="^(en|ne)$"),
+    lang: str = Query(default="en", pattern="^(en|ne)$"),
     minimal: bool = Query(False),
-    crop_type: str = Query(default="tomato", regex="^(tomato|potato|bell_pepper)$"),  
+    crop_type: str = Query(default="tomato", pattern="^(tomato|potato|bell_pepper)$"),  
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -46,10 +46,19 @@ async def run_diagnosis(
         # 4. ANALYTICS
         analytics = await get_diagnosis_analytics(user_id=str(current_user.id), db=db)
         
-        # 5. SEVERITY CLASSIFICATION
-        disease_count = len(analytics.get("disease_frequency", {}))
-        severity = classify_severity(confidence, disease_count)
+        current_disease_freq = analytics.get("disease_frequency", {}).get(disease_name, 0)
+
         
+        # 5. SEVERITY CLASSIFICATION
+
+        if confidence < 0.60:
+            severity = None
+            low_confidence_warning = True
+        else:
+            # Pass the specific disease frequency, NOT the total unique diseases
+            severity = classify_severity(confidence, current_disease_freq)
+            low_confidence_warning = False
+       
         # 6. TREATMENT LOOKUP
         treatment = await get_treatment(
             disease_name=disease_name, 
@@ -97,14 +106,21 @@ async def run_diagnosis(
         
         # 9. MINIMAL MODE
         if minimal:
-            return {
-                "disease": response["disease"],
-                "confidence": response["confidence"],
-                "severity": response["severity"],
-                "pesticide": response["pesticide"]
-            }
+        # Determine if the plant is healthy based on the AI label
+            is_healthy = "Healthy" in disease_name
         
+        # Create a concise treatment summary (just the dosage instructions)
+            treatment_summary = treatment.get("dosage", "No treatment required.") if not is_healthy else "Plant is healthy. Maintain current care."
+        
+            return {
+                "disease": disease_name,
+                "confidence": round(confidence, 2),
+                "is_healthy": is_healthy,
+                "treatment_summary": treatment_summary
+            }
+            
         return response
+
         
     except HTTPException:
         raise
