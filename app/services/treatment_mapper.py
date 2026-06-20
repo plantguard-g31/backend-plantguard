@@ -3,10 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import TreatmentRecord
 
 def classify_severity(confidence: float, disease_frequency: int) -> str:
-    """
-    SRS v3.1 FR-13: Confidence × Frequency Matrix.
-    disease_frequency = how many times THIS SPECIFIC disease was diagnosed in the last 30 days.
-    """
+   
     # First-Time Diagnosis (frequency = 0)
     if disease_frequency == 0:
         if confidence < 0.60:
@@ -36,12 +33,7 @@ def classify_severity(confidence: float, disease_frequency: int) -> str:
     return "moderate"
 
 async def get_treatment(disease_name: str, crop_type: str, severity: str, db: AsyncSession) -> dict:
-    """
-    Fetches expert-verified treatment matching disease + crop + severity.
-    Uses the new composite unique key from SRS v3.1.
-    """
-    # Query by disease + crop + severity (composite unique key)
-    # Also ensure we only fetch active treatments (is_active=True)
+
     result = await db.execute(
         select(TreatmentRecord)
         .where(TreatmentRecord.disease_name == disease_name)

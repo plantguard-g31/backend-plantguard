@@ -36,3 +36,6 @@ htmlcov/
 server.crt
 server.crt
 server.key
+
+# Models
+models_cache/

@@ -16,7 +16,7 @@ class TokenResponse(BaseModel):
     expires_in: int
 
 class UserResponse(BaseModel):
-    # Keep id as string - we convert UUID to str in the endpoint
+    # id as string - we convert UUID to str in the endpoint
     id: str
     name:str
     email: str

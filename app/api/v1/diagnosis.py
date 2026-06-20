@@ -24,46 +24,46 @@ async def run_diagnosis(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    
     try:
-        # 1. SECURITY VALIDATION
+        # 1. SECURITY VALIDATION (Size + Magic Bytes)
         await validate_upload_file(file)
         
-        # 2. QUALITY PRE-SCREENING
-        await run_quality_checks(file)
+        # 2. QUALITY PRE-SCREENING (5 Checks - now returns scores)
+        quality_result = await run_quality_checks(file)
+        image_bytes = quality_result["content"]
+        blur_score = quality_result["blur_score"]
+        brightness = quality_result["brightness"]
         
-        # 3. AI INFERENCE
-        await file.seek(0)
-        image_bytes = await file.read()
-        
+        # 3. AI INFERENCE (DeiT-Tiny)
         ai_result = await predict_disease(image_bytes=image_bytes, filename=file.filename)
         if ai_result is None:
             raise HTTPException(status_code=503, detail="AI model unavailable. Please try again later.")
         
         disease_name = ai_result["disease"]
         confidence = float(ai_result["confidence"])
+        is_healthy = ai_result.get("is_healthy", False)
+        low_confidence_flag = ai_result.get("low_confidence", False)
+        top3_predictions = ai_result.get("top3", [])
+        expert_warning = ai_result.get("warning")
         
-        # 4. ANALYTICS
-        analytics = await get_diagnosis_analytics(user_id=str(current_user.id), db=db)
-        
-        current_disease_freq = analytics.get("disease_frequency", {}).get(disease_name, 0)
+        # 4. ANALYTICS (30-day history)
+        analytics = await get_diagnosis_analytics(user_id=str(current_user.id), db=db, crop_type=crop_type)
+        # Use the dictionary for frequency lookup
+        current_disease_freq = analytics.get("disease_frequency_dict", {}).get(disease_name, 0)
 
-        
-        # 5. SEVERITY CLASSIFICATION
-
-        if confidence < 0.60:
+        # 5. SEVERITY CLASSIFICATION (Confidence x Frequency Matrix)
+        if low_confidence_flag: # Confidence < 0.60
             severity = None
-            low_confidence_warning = True
+            treatment_severity = "moderate" # Fallback for DB lookup
         else:
-            # Pass the specific disease frequency, NOT the total unique diseases
             severity = classify_severity(confidence, current_disease_freq)
-            low_confidence_warning = False
+            treatment_severity = severity
        
-        # 6. TREATMENT LOOKUP
+        # 6. TREATMENT LOOKUP (Deterministic SQL)
         treatment = await get_treatment(
             disease_name=disease_name, 
             crop_type=crop_type, 
-            severity=severity, 
+            severity=treatment_severity, 
             db=db
         )
         
@@ -75,17 +75,23 @@ async def run_diagnosis(
             select(TreatmentRecord.id)
             .where(TreatmentRecord.disease_name == disease_name)
             .where(TreatmentRecord.crop_type == crop_type)
+            .where(TreatmentRecord.severity_level == treatment_severity)
             .limit(1)
         )
-        treatment_id = treatment_record.scalar()  # Returns None if not found (safe)
+        treatment_id = treatment_record.scalar()
 
-        # 7. SAVE TO HISTORY
+        # 7. SAVE TO HISTORY (ACID Transaction, SRS FR-16)
         new_diag = DiagnosisHistory(
             user_id=current_user.id,
+            disease_label=disease_name,
+            crop_type=crop_type,
             treatment_id=treatment_id,
-            confidence_score=confidence,
-            severity_level=severity,
-            is_confidence_flag=confidence < 0.60
+            confidence=confidence,
+            severity=severity, # Will be NULL if low confidence
+            image_blur_score=blur_score,
+            image_brightness=brightness,
+            quality_passed=True,
+            low_confidence_warning=low_confidence_flag
         )
         db.add(new_diag)
         await db.commit()
@@ -93,37 +99,34 @@ async def run_diagnosis(
         # 8. BUILD RESPONSE
         response = {
             "disease": disease_name,
-            "confidence": round(confidence, 2),
+            "confidence": round(confidence, 4),
+            "is_healthy": is_healthy,
+            "top3": top3_predictions,  # SRS FR-13: Top-3 predictions
             "severity": severity,
             "pesticide": treatment.get("pesticide"),
             "dosage": treatment.get("dosage"),
-            "application": treatment.get("application"),
-            "safety_notes": treatment.get("safety_notes"),
-            "source": treatment.get("source"),
-            "low_confidence_warning": None if confidence >= 0.60 else "Confidence below 60%. Verify with an expert.",
-            "analytics_warning": analytics.get("spreading_warning")
+            "application_timing": treatment.get("application_timing"),
+            "safety_instructions": treatment.get("safety_instructions"),
+            "pre_harvest_interval_days": treatment.get("pre_harvest_interval_days"),
+            "source_reference": treatment.get("source_reference"),
+            "low_confidence_warning": expert_warning,
+            "spreading_alert": analytics.get("spreading_alert")
         }
         
-        # 9. MINIMAL MODE
+        # 9. MINIMAL MODE (SRS FR-19: Exactly 4 fields for 2G/3G)
         if minimal:
-        # Determine if the plant is healthy based on the AI label
-            is_healthy = "Healthy" in disease_name
-        
-        # Create a concise treatment summary (just the dosage instructions)
             treatment_summary = treatment.get("dosage", "No treatment required.") if not is_healthy else "Plant is healthy. Maintain current care."
-        
             return {
                 "disease": disease_name,
-                "confidence": round(confidence, 2),
+                "confidence": round(confidence, 4),
                 "is_healthy": is_healthy,
                 "treatment_summary": treatment_summary
             }
             
         return response
 
-        
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Diagnosis pipeline error: {type(e).__name__}: {e}", exc_info=True)
-        raise
+        raise HTTPException(status_code=500, detail="server_error")

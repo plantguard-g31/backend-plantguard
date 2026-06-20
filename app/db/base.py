@@ -4,23 +4,39 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# 1. Engine: Connection pool to PostgreSQL
+# ─────────────────────────────────────────────────────────────
+# THE MAGIC SWITCH: SUPABASE SSL DETECTION
+# ─────────────────────────────────────────────────────────────
+# Supabase requires SSL for remote internet connections. 
+# Local PostgreSQL does not. This automatically detects which one you are using.
+connect_args = {}
+if "supabase" in settings.DATABASE_URL:
+    connect_args["ssl"] = "require"
+
+# ─────────────────────────────────────────────────────────────
+# 1. ENGINE: Connection pool to PostgreSQL
+# ─────────────────────────────────────────────────────────────
 # pool_pre_ping=True: Automatically reconnects if DB drops (critical for rural networks)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,              # Set to True later for debugging SQL queries
     pool_pre_ping=True,      # Auto-reconnect on dropped connections
-    poolclass=NullPool       # Simpler for dev; use QueuePool in production
+    poolclass=NullPool,      # Simpler for dev; use QueuePool in production
+    connect_args=connect_args # Automatically handles Supabase SSL
 )
 
-# 2. Session Factory: How we interact with the DB
+# ─────────────────────────────────────────────────────────────
+# 2. SESSION FACTORY: How we interact with the DB
+# ─────────────────────────────────────────────────────────────
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False   # Prevents "detached instance" errors
 )
 
-# 3. Dependency: FastAPI will inject this into every endpoint
+# ─────────────────────────────────────────────────────────────
+# 3. DEPENDENCY: FastAPI will inject this into every endpoint
+# ─────────────────────────────────────────────────────────────
 async def get_db() -> AsyncSession:
     """
     FastAPI dependency that provides a database session.

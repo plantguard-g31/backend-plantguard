@@ -6,17 +6,15 @@ from datetime import datetime, timezone
 import logging
 
 # Import routers
-from app.api.v1 import auth, diagnosis, history, admin
-from app.api.v1 import analytics
-from app.api.v1 import user
+from app.api.v1 import auth, diagnosis, history, admin, analytics, user
 
 # Import middleware and handlers
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.security import rate_limit_middleware
 from app.middleware.audit_logger import audit_middleware  
 
-# Import AI model loader (optional: for pre-loading DeiT at startup)
-# from app.services.ai_client import load_model
+# Import AI model loader
+from app.services.ai_client import _load_model
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +29,7 @@ logger = logging.getLogger("plantguard")
 # ─────────────────────────────────────────────────────────────
 app = FastAPI(
     title="PlantGuard API",
-    version="1.0.0",
+    version="3.1", # Updated to match SRS v3.1
     description="Secure backend for real-time plant disease diagnosis with expert-verified treatments",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -41,99 +39,52 @@ app = FastAPI(
 # ─────────────────────────────────────────────────────────────
 # MIDDLEWARE REGISTRATION (Order matters!)
 # ─────────────────────────────────────────────────────────────
-
-# 1. CORS: Enable Flutter app connectivity
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  #  Restrict to ["https://your-flutter-app.com"] in production
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 2. GZip: Compress responses >500 bytes (60-80% size reduction for low-bandwidth users)
 app.add_middleware(GZipMiddleware, minimum_size=500)
-
-# 3. Audit Logger: Log all critical requests (login, diagnose, admin actions)
 app.middleware("http")(audit_middleware)  
-
-# 4. Rate Limiting: Prevent DoS attacks (10 requests/60s per authenticated user)
 app.middleware("http")(rate_limit_middleware)
 
 # ─────────────────────────────────────────────────────────────
 # ROUTER MOUNTING
 # ─────────────────────────────────────────────────────────────
-
-# Auth endpoints: /api/v1/auth/register, /login, /refresh, /logout
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
-
-# Diagnosis pipeline: /api/v1/diagnose (main feature)
 app.include_router(diagnosis.router, prefix="/api/v1", tags=["Diagnosis Pipeline"])
-
-# History endpoint: /api/v1/history (past diagnoses for authenticated user)
 app.include_router(history.router, prefix="/api/v1", tags=["History"])
-
-# Admin endpoints: /api/v1/admin/treatments, /audit-logs
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
-
-# Analytics endpoints: /api/v1/analytics, /api/v1/analytics/crop/{type} 
 app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
-
-from app.api.v1 import user
 app.include_router(user.router, prefix="/api/v1", tags=["User Settings"])
 
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLERS & GLOBAL CONFIG
 # ─────────────────────────────────────────────────────────────
-
-# Register bilingual error handler (translates HTTP codes to EN/NE plain language)
 register_error_handlers(app)
 
 # ─────────────────────────────────────────────────────────────
-# STARTUP EVENTS (Optional: Pre-load AI model)
+# STARTUP EVENTS
 # ─────────────────────────────────────────────────────────────
-
 @app.on_event("startup")
 async def startup_event():
-    """
-    Runs once when server starts.
-    Use to pre-load AI model, warm up DB connections, etc.
-    """
-    logger.info("PlantGuard backend starting...")
-    
-    # Optional: Pre-load DeiT model to avoid cold-start latency
-    # load_model()
-    
-    logger.info("PlantGuard backend startup complete")
+    logger.info("PlantGuard starting...")
+    # Pre-load DeiT-Tiny model to avoid cold-start latency on first request 
+    _load_model()
+    logger.info("PlantGuard startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """
-    Runs once when server shuts down.
-    Use to close DB connections, clean up resources, etc.
-    """
-    logger.info("PlantGuard backend shutting down...")
+    logger.info("PlantGuard shutting down...")
 
 # ─────────────────────────────────────────────────────────────
 # HEALTH CHECK & REDIRECT ENDPOINTS
 # ─────────────────────────────────────────────────────────────
-
-@app.get("/health", tags=["Health"])
-def health_check():
-    """
-    Basic health check for load balancers / monitoring.
-    Returns 200 OK if server is running.
-    """
-    return {"status": "ok", "service": "PlantGuard Backend"}
-
-from datetime import datetime, timezone # Ensure this is imported at the top
-
 @app.get("/api/v1/health", tags=["Health"])
 def health_check():
-    """
-    FR-23: Keep-alive health check for Render.com.
-    Returns status, ISO timestamp, and version in <50ms. No auth required.
-    """
+   
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -142,7 +93,4 @@ def health_check():
 
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 def root():
-    """
-    Redirect root URL to interactive API documentation.
-    """
     return "/docs"

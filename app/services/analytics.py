@@ -5,9 +5,7 @@ from datetime import datetime, timedelta
 
 async def get_diagnosis_analytics(user_id: str, db: AsyncSession, crop_type: str = None) -> dict:
     """
-    SRS v3.1 FR-18 & FR-18b: 30-Day Disease Frequency Analytics.
-    Aggregates DIAGNOSIS_HISTORY for the authenticated user's last 30 days.
-    Optionally filters by crop_type (FR-18b).
+    30-Day Disease Frequency Analytics.
     """
     # Calculate cutoff date (30 days ago)
     cutoff = datetime.utcnow() - timedelta(days=30)
@@ -47,7 +45,7 @@ async def get_diagnosis_analytics(user_id: str, db: AsyncSession, crop_type: str
     # 4. Most common disease
     most_common_disease = disease_frequency[0]["disease_label"] if disease_frequency else None
     
-    # 5. Spreading-Disease Urgency Alert (SRS v3.1 FR-18)
+    # 5. Spreading-Disease Urgency Alert
     # Fires when any single disease_label appears >= 3 times within the 30-day window
     spreading_alert = {"triggered": False, "disease_label": None, "count": 0}
     for item in disease_frequency:

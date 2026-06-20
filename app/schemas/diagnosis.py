@@ -10,7 +10,6 @@ class DiagnoseQueryParams(BaseModel):
     lang: str = Field(default="en", regex="^(en|ne)$")
     minimal: bool = False
 
-
 # ─────────────────────────────────────────────────────────────
 # RESPONSE SCHEMAS
 # ─────────────────────────────────────────────────────────────
@@ -63,7 +62,6 @@ class HistoryItem(BaseModel):
 
 
 class HistoryResponse(BaseModel):
-    """Paginated history response."""
     total: int
     limit: int
     offset: int
