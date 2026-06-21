@@ -58,7 +58,7 @@ app.include_router(diagnosis.router, prefix="/api/v1", tags=["Diagnosis Pipeline
 app.include_router(history.router, prefix="/api/v1", tags=["History"])
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
-app.include_router(user.router, prefix="/api/v1", tags=["User Settings"])
+app.include_router(user.router, prefix="/api/v1")
 
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLERS & GLOBAL CONFIG

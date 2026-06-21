@@ -4,7 +4,8 @@ from functools import lru_cache
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:ritikbt@localhost:5432/plantguard"
-    
+    SYNC_DATABASE_URL: str = ""
+
     # Security
     JWT_SECRET: str = "vlHvwYRPDbN4CqVX-lBYFMT8_O1KszPYxB0SFH_zR48"
     JWT_ALGORITHM: str = "HS256"
@@ -14,6 +15,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_TOKENS: int = 10
     RATE_LIMIT_WINDOW: int = 60  # seconds
     MAX_FILE_SIZE_MB: int = 5
+
+    # Supabase for User Profile
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
 
     # Prevent accidental loading of wrong env files
     model_config = {"env_file": ".env", "extra": "ignore"}
