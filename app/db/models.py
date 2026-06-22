@@ -22,6 +22,9 @@ class User(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     profile_picture_url = Column(String, nullable=True)
+    refresh_token = Column(String(500), nullable=True)
+    refresh_token_expiry = Column(DateTime, nullable=True)
+
     
     diagnosis_history = relationship("DiagnosisHistory", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")

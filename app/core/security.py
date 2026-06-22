@@ -29,6 +29,19 @@ def create_access_token(user_id: str, role: str = "farmer") -> dict:
     token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "expires_in": settings.JWT_EXPIRE_MINUTES * 60}
 
+def create_refresh_token(user_id: str, role: str = "farmer") -> dict:
+    """Generate a long-lived JWT (7 days) for refreshing the access token."""
+    expire = datetime.utcnow() + timedelta(days=7)
+    payload = {
+        "sub": str(user_id),
+        "role": role,
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "refresh" # Tag to identify this as a refresh token
+    }
+    token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return {"refresh_token": token, "expires_at": expire}
+
 def decode_token(token: str) -> dict:
     """Verify and decode a JWT. Raises HTTPException if invalid/expired."""
     try:

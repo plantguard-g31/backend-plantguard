@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.base import get_db
 from app.db.models import DiagnosisHistory, TreatmentRecord, User
 from app.core.dependencies import get_current_user
+from fastapi import status 
 
 router = APIRouter(prefix="/history", tags=["History"])
 
@@ -40,8 +41,8 @@ async def get_user_history(
                     "id": str(h.id),
                     "disease": d_name or "Unknown",  # Handle NULL treatment_id
                     "crop": d_crop or "Unknown",
-                    "confidence": h.confidence_score,
-                    "severity": h.severity_level,
+                    "confidence": h.confidence,
+                    "severity": h.severity,
                     "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
                 }
                 for h, d_name, d_crop in records
@@ -78,9 +79,9 @@ async def get_history_item(
             "id": str(h.id),
             "disease": d_name or "Unknown",
             "crop": d_crop or "Unknown",
-            "confidence": h.confidence_score,
-            "severity": h.severity_level,
-            "is_confidence_flag": h.is_confidence_flag,
+            "confidence": h.confidence,
+            "severity": h.severity,
+            "is_confidence_flag": h.is_confidence_warning,
             "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
         }
     except HTTPException:
@@ -89,7 +90,7 @@ async def get_history_item(
         raise HTTPException(status_code=500, detail=f"Failed to fetch history item: {str(e)}")
 
 
-from fastapi import status # Ensure status is imported at the top of the file
+
 
 @router.delete("/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_history_item(

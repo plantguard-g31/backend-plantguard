@@ -3,11 +3,11 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:ritikbt@localhost:5432/plantguard"
+    DATABASE_URL: str = ""
     SYNC_DATABASE_URL: str = ""
 
     # Security
-    JWT_SECRET: str = "vlHvwYRPDbN4CqVX-lBYFMT8_O1KszPYxB0SFH_zR48"
+    JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 30
     
