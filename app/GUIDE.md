@@ -26,3 +26,30 @@ What's happening:
 |rate_limit_middleware   | Prevents abuse/DoS attacks        | 10 requests/60s per user protection                    |
 
 ## Steps2: Logging Config
+
+
+
+## Test Treatment_db_Verification:
+python -c "
+import asyncio, asyncpg, os
+from dotenv import load_dotenv
+load_dotenv()
+
+async def verify():
+    url = os.getenv('SYNC_DATABASE_URL')
+    conn = await asyncpg.connect(url, ssl='require')
+    
+    treatments = await conn.fetchval('SELECT COUNT(*) FROM treatment_records')
+    translations = await conn.fetchval('SELECT COUNT(*) FROM treatment_translations')
+    users = await conn.fetchval('SELECT COUNT(*) FROM users')
+    
+    print('--- DATABASE VERIFICATION ---')
+    print(f'Treatment Records: {treatments} (Expected: 45)')
+    print(f'Nepali Translations: {translations} (Expected: 45)')
+    print(f'Registered Users: {users}')
+    print('-----------------------------')
+    
+    await conn.close()
+
+asyncio.run(verify())
+"

@@ -17,6 +17,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(10), nullable=False, default="farmer")
+    is_super_admin = Column(Boolean, nullable=False, default=False)
     language_pref = Column(String(2), nullable=False, default="en")
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

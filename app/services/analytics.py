@@ -4,9 +4,7 @@ from app.db.models import DiagnosisHistory
 from datetime import datetime, timedelta
 
 async def get_diagnosis_analytics(user_id: str, db: AsyncSession, crop_type: str = None) -> dict:
-    """
-    30-Day Disease Frequency Analytics.
-    """
+
     # Calculate cutoff date (30 days ago)
     cutoff = datetime.utcnow() - timedelta(days=30)
     

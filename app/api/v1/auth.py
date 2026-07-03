@@ -63,7 +63,9 @@ async def login_user(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
         "access_token": access_data["access_token"],
         "refresh_token": refresh_data["refresh_token"],
         "token_type": "bearer",
-        "expires_in": 30 * 60 # 30 minutes in seconds
+        "expires_in": 30 * 60, # 30 minutes in seconds
+        "role": user.role,
+        "is_super_admin": user.is_super_admin
     }
 
 @router.post("/refresh")

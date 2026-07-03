@@ -31,6 +31,7 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
         name=current_user.name,
         email=current_user.email,
         role=current_user.role,
+        is_super_admin=current_user.is_super_admin,
         language_pref=current_user.language_pref,
         profile_picture_url=current_user.profile_picture_url
     )
