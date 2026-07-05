@@ -81,7 +81,7 @@ async def get_history_item(
             "crop": d_crop or "Unknown",
             "confidence": h.confidence,
             "severity": h.severity,
-            "is_confidence_flag": h.is_confidence_warning,
+            "is_confidence_flag": h.low_confidence_warning,
             "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
         }
     except HTTPException:

@@ -11,6 +11,8 @@ from app.services.quality_gate import run_quality_checks
 from app.services.analytics import get_diagnosis_analytics
 from app.services.treatment_mapper import classify_severity, get_treatment
 from app.services.ai_client import predict_disease
+from app.services.localization import get_translated_treatment
+
 
 logger = logging.getLogger("plantguard.diagnosis")
 router = APIRouter(prefix="/diagnose", tags=["Diagnosis Pipeline"])
@@ -80,6 +82,9 @@ async def run_diagnosis(
         )
         treatment_id = treatment_record.scalar()
 
+        # Localization: Fetch nepali version if user choose 'ne' language)     
+        translated = await get_translated_treatment(str(treatment_id), lang, db) if treatment_id else None
+
         # 7. SAVE TO HISTORY (ACID Transaction, SRS FR-16)
         new_diag = DiagnosisHistory(
             user_id=current_user.id,
@@ -98,15 +103,15 @@ async def run_diagnosis(
         
         # 8. BUILD RESPONSE
         response = {
-            "disease": disease_name,
+            "disease": translated["disease_name"] if translated else disease_name,
             "confidence": round(confidence, 4),
             "is_healthy": is_healthy,
             "top3": top3_predictions,  # SRS FR-13: Top-3 predictions
             "severity": severity,
             "pesticide": treatment.get("pesticide"),
             "dosage": treatment.get("dosage"),
-            "application_timing": treatment.get("application_timing"),
-            "safety_instructions": treatment.get("safety_instructions"),
+            "application_timing": translated["application_timing"] if translated else treatment.get("application_timing"),
+            "safety_instructions": translated["safety_instructions"] if translated else treatment.get("safety_instructions"),
             "pre_harvest_interval_days": treatment.get("pre_harvest_interval_days"),
             "source_reference": treatment.get("source_reference"),
             "low_confidence_warning": expert_warning,

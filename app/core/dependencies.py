@@ -20,6 +20,13 @@ async def get_current_user(
     token = credentials.credentials
     payload = decode_token(token)
     
+    # Reject refresh token used where an access token belongs
+    if payload.get("type") == "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type."
+        )
+    
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(
