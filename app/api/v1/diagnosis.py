@@ -100,6 +100,8 @@ async def run_diagnosis(
         )
         db.add(new_diag)
         await db.commit()
+
+        translated = await get_translated_treatment(str(treatment_id), lang, db) if treatment_id else None
         
         # 8. BUILD RESPONSE
         response = {

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import logging
 
 # Import routers
-from app.api.v1 import auth, diagnosis, history, admin, analytics, user
+from app.api.v1 import auth, diagnosis, history, admin, analytics, treatment_guide, user
 
 # Import middleware and handlers
 from app.middleware.error_handler import register_error_handlers
@@ -41,12 +41,14 @@ app = FastAPI(
 # ─────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React frontend
-        "http://localhost:8080"  
-        "http://localhost:8000"
-    ], 
-    allow_credentials=True,
+    allow_origins=["*"],
+    
+#        "http://localhost:3000",  # React frontend
+#        "http://localhost:8080",  
+#        "http://localhost:8000"
+#    ], 
+
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -63,7 +65,7 @@ app.include_router(history.router, prefix="/api/v1", tags=["History"])
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(user.router, prefix="/api/v1")
-
+app.include_router(treatment_guide.router, prefix="/api/v1")
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLERS & GLOBAL CONFIG
 # ─────────────────────────────────────────────────────────────

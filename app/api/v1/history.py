@@ -43,6 +43,7 @@ async def get_user_history(
                     "crop": d_crop or "Unknown",
                     "confidence": h.confidence,
                     "severity": h.severity,
+                    "low_confidence_warning": h.low_confidence_warning,
                     "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
                 }
                 for h, d_name, d_crop in records
@@ -59,22 +60,41 @@ async def get_history_item(
 ):
     """Retrieve a single diagnosis history record by ID."""
     try:
+        # 1. UPDATE THE QUERY: Fetch all necessary treatment columns
         result = await db.execute(
             select(
                 DiagnosisHistory,
                 TreatmentRecord.disease_name,
-                TreatmentRecord.crop_type
+                TreatmentRecord.crop_type,
+                TreatmentRecord.pesticide_name,
+                TreatmentRecord.dosage_mild,
+                TreatmentRecord.dosage_moderate,
+                TreatmentRecord.dosage_severe,
+                TreatmentRecord.application_timing,
+                TreatmentRecord.safety_instructions,
+                TreatmentRecord.pre_harvest_interval_days,
             )
             .join(TreatmentRecord, DiagnosisHistory.treatment_id == TreatmentRecord.id, isouter=True)
             .where(DiagnosisHistory.id == history_id)
             .where(DiagnosisHistory.user_id == current_user.id)
         )
-        row = result.first()
         
+        row = result.first()
         if not row:
             raise HTTPException(status_code=404, detail="Diagnosis history not found")
         
-        h, d_name, d_crop = row
+        # 2. UNPACK THE ROW: Assign all the new variables
+        h, d_name, d_crop, pesticide, dose_mild, dose_mod, dose_sev, app_timing, safety, phi = row
+        
+        # 3. SMART DOSAGE LOGIC: Pick the right dosage based on the historical severity
+        if h.severity == "mild":
+            final_dosage = dose_mild
+        elif h.severity == "severe":
+            final_dosage = dose_sev
+        else:
+            final_dosage = dose_mod  # Default to moderate if null or moderate
+            
+        # 4. RETURN THE FULL DICTIONARY
         return {
             "id": str(h.id),
             "disease": d_name or "Unknown",
@@ -82,8 +102,15 @@ async def get_history_item(
             "confidence": h.confidence,
             "severity": h.severity,
             "is_confidence_flag": h.low_confidence_warning,
-            "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
+            "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None,
+            # --- NEW REMEDY FIELDS ---
+            "pesticide_name": pesticide,
+            "dosage": final_dosage,
+            "application_timing": app_timing,
+            "safety_instructions": safety,
+            "pre_harvest_interval_days": phi,
         }
+        
     except HTTPException:
         raise
     except Exception as e:
