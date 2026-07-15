@@ -29,3 +29,4 @@ huggingface_hub>=0.17.0
 timm>=1.0.27
 psycopg2-binary>=2.9.9
 supabase==2.3.4
+resende==2.4.0

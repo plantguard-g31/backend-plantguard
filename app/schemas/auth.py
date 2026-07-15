@@ -58,3 +58,24 @@ class ChangePasswordRequest(BaseModel):
         if self.new_password != self.confirm_new_password:
             raise ValueError("Password Does not Match.")
         return self
+# ===== Forget Password Schema ======
+class ForgotPasswordRequest(BaseModel):
+    """Farmer enter their mail to receive a 6-digit reset code"""
+    email: EmailStr
+
+
+# ===== Reser Password Schema ======
+class ResetPasswordRequest(BaseModel):
+    """Farmer enter the email, OTP code, and new password to complete reset"""
+    email: EmailStr
+    otp_code: str = Field(..., min_length=6, max_length=6, description="6-digit OTP code sent to your email")
+    new_password: str = Field(..., min_length=8, max_length=128, description="Your new password must be minimum 8 characters")
+    confirm_new_password: str = Field(..., min_length=8, max_length=128, description="Must match new password")
+    
+    @model_validator(mode='after')
+    def passwords_must_match(self):
+        if self.new_password != self.confirm_new_password:
+            raise ValueError("Password Does not Match.")
+        return self
+    
+    

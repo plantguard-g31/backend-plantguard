@@ -105,7 +105,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     event_type = Column(String(50), nullable=False, index=True)
     endpoint = Column(String(100), nullable=False)
     ip_address = Column(String(45), nullable=True)
@@ -114,3 +114,20 @@ class AuditLog(Base):
     timestamp = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     
     user = relationship("User", back_populates="audit_logs")
+
+
+# ===== TABLE 6: PASSWORD_RESET_TOKENS =====
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False, index=True)  # Which farmer requested reset
+    otp_code = Column(String(6), nullable=False)              # 6-digit code (plain text, short-lived)
+    expires_at = Column(DateTime, nullable=False)             # 15 minutes from creation
+    is_used = Column(Boolean, nullable=False, default=False)  # Single-use protection
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Index for fast lookup when verifying OTP
+    __table_args__ = (
+        Index("ix_reset_email_code", "email", "otp_code"),
+    )

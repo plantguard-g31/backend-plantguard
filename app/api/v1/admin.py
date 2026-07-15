@@ -139,12 +139,12 @@ async def create_treatment(
     admin: User = Depends(get_current_admin)
 ):
     """Create new expert-verified treatment."""
-    new_treatment = TreatmentRecord(**data.dict(), is_active=True)
+    new_treatment = TreatmentRecord(**data.model_dump(), is_active=True)
     db.add(new_treatment)
     await db.commit()
     await db.refresh(new_treatment)
     
-    await log_admin_action(db, str(admin.id), "admin_create_treatment", str(new_treatment.id), data.dict())
+    await log_admin_action(db, str(admin.id), "admin_create_treatment", str(new_treatment.id), data.model_dump())
     return new_treatment
 
 @router.put("/treatments/{treatment_id}")
@@ -161,7 +161,7 @@ async def update_treatment(
         raise HTTPException(status_code=404, detail="Treatment not found")
     
     # Only update fields that were actually provided in the request
-    update_data = data.dict(exclude_unset=True)
+    update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(record, key, value)
         

@@ -82,9 +82,6 @@ async def run_diagnosis(
         )
         treatment_id = treatment_record.scalar()
 
-        # Localization: Fetch nepali version if user choose 'ne' language)     
-        translated = await get_translated_treatment(str(treatment_id), lang, db) if treatment_id else None
-
         # 7. SAVE TO HISTORY (ACID Transaction, SRS FR-16)
         new_diag = DiagnosisHistory(
             user_id=current_user.id,
@@ -101,6 +98,7 @@ async def run_diagnosis(
         db.add(new_diag)
         await db.commit()
 
+        # Localization: Fetch nepali version if user choose 'ne' language)     
         translated = await get_translated_treatment(str(treatment_id), lang, db) if treatment_id else None
         
         # 8. BUILD RESPONSE

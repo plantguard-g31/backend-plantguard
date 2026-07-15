@@ -1,8 +1,9 @@
 import jwt
-import bcrypt
+import bcrypt 
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from app.core.config import get_settings
+import secrets
 
 settings = get_settings()
 
@@ -59,3 +60,8 @@ def decode_token(token: str) -> dict:
             detail="Invalid authentication token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+
+def generate_otp() -> str:
+    
+    return f"{secrets.randbelow(1000000):06d}"
