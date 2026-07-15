@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional
 
 
@@ -45,3 +45,16 @@ class ProfilePhotoResponse(BaseModel):
     """Returned by POST /user/profile-photo after successful upload"""
     message: str
     profile_picture_url: str
+
+# =====CHANGE PASSWORD SCHEMA
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=8, max_length=128, description="Your current password")
+    new_password: str = Field(..., min_length=8, max_length=128, description="Your new password must be minimum 8 characters")
+    confirm_new_password: str = Field(..., min_length=8, max_length=128, description="Must match new password")
+
+
+    @model_validator(mode='after')
+    def passwords_must_match(self):
+        if self.new_password != self.confirm_new_password:
+            raise ValueError("Password Does not Match.")
+        return self
