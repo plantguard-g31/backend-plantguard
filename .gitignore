@@ -39,3 +39,6 @@ server.key
 
 # Models
 models_cache/
+
+# Repopack
+repopack-output.txt

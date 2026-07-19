@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 5
 
     # Email Service (Password Reset)
-    RESEND_API_KEY: str 
+    # RESEND_API_KEY: str 
+    SMTP_EMAIL: str
+    SMTP_APP_PASSWORD: str
     OTP_EXPIRE_MINUTES: int = 15
     
 
