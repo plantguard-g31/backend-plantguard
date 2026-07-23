@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     SUPABASE_URL: str 
     SUPABASE_KEY: str 
 
+    # Notification Service (Firebase FCM)
+    FIREBASE_CREDENTIALS_PATH: str = "firebase-credentials.json.json"
+
+
     # Prevent accidental loading of wrong env files
     model_config = {"env_file": ".env", "extra": "ignore"}
 

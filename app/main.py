@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import logging
 
 # Import routers
-from app.api.v1 import auth, diagnosis, history, admin, analytics, treatment_guide, user
+from app.api.v1 import auth, diagnosis, history, admin, analytics, treatment_guide, user, notifications
 
 # Import middleware and handlers
 from app.middleware.error_handler import register_error_handlers
@@ -66,6 +66,7 @@ app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(treatment_guide.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLERS & GLOBAL CONFIG
 # ─────────────────────────────────────────────────────────────
@@ -79,6 +80,12 @@ async def startup_event():
     logger.info("PlantGuard starting...")
     # Pre-load DeiT-Tiny model to avoid cold-start latency on first request 
     _load_model()
+
+
+    # Notification Service Startup
+    from app.services.notification_job import start_notification_scheduler
+    start_notification_scheduler()
+
     logger.info("PlantGuard startup complete")
 
 @app.on_event("shutdown")

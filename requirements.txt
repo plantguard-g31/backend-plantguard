@@ -119,3 +119,5 @@ Werkzeug==3.1.8
 yarl==1.24.2
 zope.event==6.2
 zope.interface==8.4
+firebase-admin==6.0.0
+apscheduler==3.11.3

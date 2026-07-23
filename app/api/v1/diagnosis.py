@@ -12,6 +12,7 @@ from app.services.analytics import get_diagnosis_analytics
 from app.services.treatment_mapper import classify_severity, get_treatment
 from app.services.ai_client import predict_disease
 from app.services.localization import get_translated_treatment
+from app.services.notification_scheduler import create_treatment_notification_schedule  # ← ADDED
 
 
 logger = logging.getLogger("plantguard.diagnosis")
@@ -97,6 +98,26 @@ async def run_diagnosis(
         )
         db.add(new_diag)
         await db.commit()
+        await db.refresh(new_diag)  # ← ADDED: Get the diagnosis ID
+
+        # 7.5 NOTIFICATION SCHEDULER (Trigger treatment reminders)
+        # Only for diseased plants with a treatment — healthy plants get no notifications
+        if not is_healthy and treatment_id:
+            try:
+                await create_treatment_notification_schedule(
+                    user_id=str(current_user.id),
+                    diagnosis_id=str(new_diag.id),
+                    disease_name=disease_name,
+                    dosage_string=treatment.get("dosage", ""),
+                    timing_string=treatment.get("application_timing", ""),
+                    phi_days=treatment.get("pre_harvest_interval_days", 0),
+                    pesticide_name=treatment.get("pesticide", ""),
+                    db=db
+                )
+                logger.info(f"✅ Notification schedule created for diagnosis {new_diag.id}")
+            except Exception as e:
+                # Notifications are non-critical — never break the diagnosis flow
+                logger.warning(f"⚠️ Notification scheduling failed (non-critical): {e}")
 
         # Localization: Fetch nepali version if user choose 'ne' language)     
         translated = await get_translated_treatment(str(treatment_id), lang, db) if treatment_id else None
