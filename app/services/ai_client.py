@@ -12,7 +12,7 @@ logger = logging.getLogger("plantguard.ai")
 
 USE_MOCK = False  # Set to True for MOCK Use
 MODEL_REPO = "Precious466/plantguard-resnet50-teacher"
-MODEL_FILE = "deit_tiny_student.pth"
+MODEL_FILE = "deit_tiny_mixed.pth"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # IMPORTANT: Verify this matches Yashraj's training class order!
