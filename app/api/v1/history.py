@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.base import get_db
-from app.db.models import DiagnosisHistory, TreatmentRecord, User
+from app.db.models import DiagnosisHistory, TreatmentRecord, TreatmentTranslation, User
 from app.core.dependencies import get_current_user
-from fastapi import status 
+from fastapi import status
 
 router = APIRouter(prefix="/history", tags=["History"])
 
@@ -17,11 +17,15 @@ async def get_user_history(
 ):
     """Retrieve paginated diagnosis history for authenticated user."""
     try:
+        # Get user's preferred language
+        lang = current_user.language_pref
+
         result = await db.execute(
             select(
                 DiagnosisHistory,
                 TreatmentRecord.disease_name,
-                TreatmentRecord.crop_type
+                TreatmentRecord.crop_type,
+                TreatmentRecord.id  # Need ID to fetch translation
             )
             .join(TreatmentRecord, DiagnosisHistory.treatment_id == TreatmentRecord.id, isouter=True)
             .where(DiagnosisHistory.user_id == current_user.id)
@@ -31,6 +35,20 @@ async def get_user_history(
         )
         records = result.all()
         
+        # Fetch translations if user prefers Nepali
+        translation_map = {}
+        if lang == "ne":
+            treatment_ids = [r[2] for r in records if r[2] is not None] # r[2] is TreatmentRecord.id
+            if treatment_ids:
+                trans_result = await db.execute(
+                    select(TreatmentTranslation).where(
+                        TreatmentTranslation.treatment_record_id.in_(treatment_ids),
+                        TreatmentTranslation.language_code == "ne"
+                    )
+                )
+                for t in trans_result.scalars().all():
+                    translation_map[str(t.treatment_record_id)] = t
+
         return {
             "total": len(records),
             "limit": limit,
@@ -39,14 +57,15 @@ async def get_user_history(
             "items": [
                 {
                     "id": str(h.id),
-                    "disease": d_name or "Unknown",  # Handle NULL treatment_id
+                    # If Nepali and translation exists, use translated disease name, else fallback to English
+                    "disease": translation_map[str(t_id)].disease_name_translated if (lang == "ne" and t_id and str(t_id) in translation_map) else (d_name or "Unknown"),
                     "crop": d_crop or "Unknown",
                     "confidence": h.confidence,
                     "severity": h.severity,
                     "low_confidence_warning": h.low_confidence_warning,
                     "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None
                 }
-                for h, d_name, d_crop in records
+                for h, d_name, d_crop, t_id in records
             ]
         }
     except Exception as e:
@@ -60,20 +79,12 @@ async def get_history_item(
 ):
     """Retrieve a single diagnosis history record by ID."""
     try:
-        # 1. UPDATE THE QUERY: Fetch all necessary treatment columns
+        # 1. Get the user's preferred language
+        lang = current_user.language_pref
+
+        # 2. Fetch the base diagnosis and treatment record
         result = await db.execute(
-            select(
-                DiagnosisHistory,
-                TreatmentRecord.disease_name,
-                TreatmentRecord.crop_type,
-                TreatmentRecord.pesticide_name,
-                TreatmentRecord.dosage_mild,
-                TreatmentRecord.dosage_moderate,
-                TreatmentRecord.dosage_severe,
-                TreatmentRecord.application_timing,
-                TreatmentRecord.safety_instructions,
-                TreatmentRecord.pre_harvest_interval_days,
-            )
+            select(DiagnosisHistory, TreatmentRecord)
             .join(TreatmentRecord, DiagnosisHistory.treatment_id == TreatmentRecord.id, isouter=True)
             .where(DiagnosisHistory.id == history_id)
             .where(DiagnosisHistory.user_id == current_user.id)
@@ -83,40 +94,77 @@ async def get_history_item(
         if not row:
             raise HTTPException(status_code=404, detail="Diagnosis history not found")
         
-        # 2. UNPACK THE ROW: Assign all the new variables
-        h, d_name, d_crop, pesticide, dose_mild, dose_mod, dose_sev, app_timing, safety, phi = row
+        h, treatment_record = row
         
-        # 3. SMART DOSAGE LOGIC: Pick the right dosage based on the historical severity
-        if h.severity == "mild":
-            final_dosage = dose_mild
-        elif h.severity == "severe":
-            final_dosage = dose_sev
-        else:
-            final_dosage = dose_mod  # Default to moderate if null or moderate
+        if not treatment_record:
+            # No treatment record linked (e.g., healthy plant or missing data)
+            return {
+                "id": str(h.id),
+                "disease": h.disease_label,
+                "crop": h.crop_type,
+                "confidence": h.confidence,
+                "severity": h.severity,
+                "low_confidence_warning": h.low_confidence_warning,
+                "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None,
+                "pesticide_name": "N/A",
+                "dosage": "N/A",
+                "application_timing": "N/A",
+                "safety_instructions": "N/A",
+                "pre_harvest_interval_days": 0,
+            }
+
+        # 3. Default to English values
+        pesticide_name = treatment_record.pesticide_name
+        app_timing = treatment_record.application_timing
+        safety = treatment_record.safety_instructions
+        disease_display = treatment_record.disease_name
+
+        # 4. If user prefers Nepali, fetch translations
+        if lang == "ne":
+            trans_result = await db.execute(
+                select(TreatmentTranslation).where(
+                    TreatmentTranslation.treatment_record_id == treatment_record.id,
+                    TreatmentTranslation.language_code == "ne"
+                )
+            )
+            trans = trans_result.scalars().first()
             
-        # 4. RETURN THE FULL DICTIONARY
+            if trans:
+                disease_display = trans.disease_name_translated
+                app_timing = trans.treatment_instructions_translated
+                safety = trans.safety_warnings_translated
+                # Note: Chemical names (pesticide_name) are usually kept in English 
+                # as they are specific chemical compounds, but you can add a 
+                # pesticide_name_translated column later if needed.
+
+        # 5. Smart Dosage Logic: Pick the right dosage based on the historical severity
+        if h.severity == "mild":
+            final_dosage = treatment_record.dosage_mild
+        elif h.severity == "severe":
+            final_dosage = treatment_record.dosage_severe
+        else:
+            final_dosage = treatment_record.dosage_moderate
+            
+        # 6. Return the Full Dictionary (Now Language-Aware!)
         return {
             "id": str(h.id),
-            "disease": d_name or "Unknown",
-            "crop": d_crop or "Unknown",
+            "disease": disease_display,
+            "crop": treatment_record.crop_type,
             "confidence": h.confidence,
             "severity": h.severity,
             "low_confidence_warning": h.low_confidence_warning,
             "diagnosed_at": h.diagnosed_at.isoformat() if h.diagnosed_at else None,
-            "pesticide_name": pesticide,
+            "pesticide_name": pesticide_name,
             "dosage": final_dosage,
             "application_timing": app_timing,
             "safety_instructions": safety,
-            "pre_harvest_interval_days": phi,
+            "pre_harvest_interval_days": treatment_record.pre_harvest_interval_days,
         }
         
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch history item: {str(e)}")
-
-
-
 
 @router.delete("/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_history_item(
@@ -125,23 +173,18 @@ async def delete_history_item(
     db: AsyncSession = Depends(get_db)
 ):
     """FR-17: Delete a diagnosis record. Scoped to authenticated user only."""
-    # 1. Find the record
     result = await db.execute(
         select(DiagnosisHistory).where(DiagnosisHistory.id == history_id)
     )
     record = result.scalars().first()
     
-    # 2. Check if it exists
     if not record:
         raise HTTPException(status_code=404, detail="Diagnosis history not found")
         
-    # 3. Security Check: Ensure user owns this record (Prevents IDOR vulnerability)
     if str(record.user_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="You do not have permission to delete this record.")
         
-    # 4. Delete and commit
     await db.delete(record)
     await db.commit()
     
-    # 204 No Content means success, but returns empty body (saves bandwidth for 2G/3G)
-    return None 
+    return None
