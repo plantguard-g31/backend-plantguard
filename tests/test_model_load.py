@@ -4,7 +4,7 @@ from huggingface_hub import hf_hub_download
 import timm
 
 MODEL_REPO = "Precious466/plantguard-resnet50-teacher"
-MODEL_FILE = "deit_tiny_student.pth"
+MODEL_FILE = "deit_tiny_mixed.pth"
 
 try:
     print("Downloading model from HuggingFace...")

@@ -17,7 +17,7 @@ async def check_and_send_due_notifications():
     Runs periodically (e.g., every 5 minutes) to find pending notifications
     that are due to be sent, sends them via FCM, and marks them as sent.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow() 
     
     async with AsyncSessionLocal() as db:
         try:
