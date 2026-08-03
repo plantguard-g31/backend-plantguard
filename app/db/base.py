@@ -25,6 +25,7 @@ if "supabase" in settings.DATABASE_URL:
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,              # Set to True later for debugging SQL queries
+    connect_args={"statement_cache_size":0},
     pool_pre_ping=True,      # Auto-reconnect on dropped connections
     pool_size=20,            # ✅ NEW: Keep 20 connections ready
     max_overflow=10,         # ✅ NEW: Allow 10 more under heavy load
