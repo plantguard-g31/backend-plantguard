@@ -45,3 +45,6 @@ repopack-output.txt
 
 # Notification
 firebase-credentials.json.json
+requirements-dev.txt
+
+tests/

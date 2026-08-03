@@ -90,7 +90,7 @@ class DiagnosisHistory(Base):
     user = relationship("User", back_populates="diagnosis_history")
     treatment = relationship("TreatmentRecord", back_populates="diagnosis_histories")
     
-    # ✅ NOTIFICATION FEATURE — Relationship to notifications triggered by this diagnosis
+    # NOTIFICATION FEATURE — Relationship to notifications triggered by this diagnosis
     notifications = relationship("Notification", back_populates="diagnosis")
     
     # Composite index for analytics query speed per SRS v3.1

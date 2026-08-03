@@ -148,11 +148,6 @@ async def forgot_password(
     - Store it in password_reset_tokens table (expires in 15 minutes)
     - Send it via email using Resend
     - Log the event to audit_logs
-    
-    CRITICAL SECURITY RULE:
-    We return the SAME response whether the email exists or not.
-    This prevents "email enumeration" — hackers cannot discover which
-    emails are registered in our system by testing different addresses.
     """
     
     email = request_data.email.strip().lower()
@@ -236,11 +231,6 @@ async def reset_password(
     """
     Farmer enters email + OTP code + new password.
     Backend validates the code, updates password, and invalidates all sessions.
-    
-    Error Codes:
-    - 400: Invalid or expired OTP code
-    - 404: Email not found in system
-    - 422: Validation error (passwords don't match, code not 6 digits, etc.)
     """
     
     email = request_data.email.strip().lower()

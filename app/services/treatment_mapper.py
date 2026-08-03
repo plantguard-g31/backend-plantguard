@@ -11,7 +11,7 @@ def classify_severity(confidence: float, disease_frequency: int) -> str:
         elif 0.60 <= confidence <= 0.79:
             return "mild"
         elif confidence >= 0.80:
-            return "moderate" # First-time cannot be severe
+            return "moderate" # First-time 
             
     # Returning Diagnosis (frequency >= 1)
     else:

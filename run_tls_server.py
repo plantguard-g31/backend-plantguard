@@ -1,55 +1,92 @@
-import uvicorn
 import ssl
-import traceback
 import sys
+import traceback
 from pathlib import Path
 
+import uvicorn
+
+
 def verify_tls_config():
+    """
+    Verify that the certificate and private key exist.
+    """
     cert = Path("server.crt")
     key = Path("server.key")
+
     if not cert.exists():
-        print(f"Missing: {cert.absolute()}")
+        print(f"❌ Missing certificate: {cert.absolute()}")
+
     if not key.exists():
-        print(f"Missing: {key.absolute()}")
+        print(f"❌ Missing private key: {key.absolute()}")
+
     return cert.exists() and key.exists()
 
-def create_tls_context(cert_file: str, key_file: str) -> ssl.SSLContext:
+
+def create_tls_context() -> ssl.SSLContext:
     """
-    Creates an SSLContext enforcing TLS 1.3 minimum.
-    Used for verification/testing only — production TLS is handled by Render.com.
+    Create an SSL context that ONLY allows TLS 1.3.
     """
+
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+
+    # Enforce TLS 1.3 ONLY
     context.minimum_version = ssl.TLSVersion.TLSv1_3
-    context.load_cert_chain(cert_file, key_file)
+    context.maximum_version = ssl.TLSVersion.TLSv1_3
+
+    # Load certificate
+    context.load_cert_chain(
+        certfile="server.crt",
+        keyfile="server.key",
+    )
+
     return context
 
+
+def ssl_context_factory(config, default_factory):
+    """
+    Uvicorn calls this to obtain the SSL context.
+    """
+    print("🔒 Creating TLS 1.3 ONLY SSL Context...")
+    return create_tls_context()
+
+
 if __name__ == "__main__":
-    print(" Starting TLS 1.3 server check...")
+
+    print("=" * 60)
+    print("PlantGuard Backend TLS 1.3 Verification Server")
+    print("=" * 60)
+
     if not verify_tls_config():
-        print(" Aborting: Certificate files not found in project root.")
+        print("\n❌ Certificate files not found.")
         sys.exit(1)
-    
+
     try:
-        #  Verify TLS 1.3 config works (for documentation/testing)
-        print("🔒 Verifying TLS 1.3 context...")
-        ctx = create_tls_context("server.crt", "server.key")
-        print(f"TLS 1.3 context created. Minimum version: {ctx.minimum_version}")
-        
-        # Start Uvicorn with TLS using universally-supported parameters
-        # Note: ssl_minimum_version is enforced at reverse proxy level in production
-        print(" Starting Uvicorn on https://0.0.0.0:8000")
-        print(" Connect via: https://localhost:8000 or https://127.0.0.1:8000")
-        print(" Local testing: TLS version negotiated by client")
-        print("   Production (Render.com): TLS 1.3 enforced automatically")
-        
+
+        # Verify SSL Context
+        ctx = create_tls_context()
+
+        print("\n✅ SSL Context Created Successfully")
+        print(f"Minimum TLS : {ctx.minimum_version.name}")
+        print(f"Maximum TLS : {ctx.maximum_version.name}")
+
+        print("\nStarting HTTPS server...")
+        print("URL: https://localhost:8000")
+        print("URL: https://127.0.0.1:8000")
+        print("\nTLS Policy:")
+        print("  ✔ TLS 1.3 : Allowed")
+        print("  ✘ TLS 1.2 : Blocked")
+        print("  ✘ TLS 1.1 : Blocked")
+        print("  ✘ TLS 1.0 : Blocked")
+        print("=" * 60)
+
         uvicorn.run(
             "app.main:app",
-            host="0.0.0.0",           # Listen on all interfaces
+            host="0.0.0.0",
             port=8000,
-            ssl_keyfile="server.key",      # Supported by all Uvicorn versions
-            ssl_certfile="server.crt",     #Supported by all Uvicorn versions
+            ssl_context_factory=ssl_context_factory,
         )
-    except Exception as e:
-        print("💥 CRASH DETAIL:")
+
+    except Exception:
+        print("\n💥 Server failed to start:\n")
         traceback.print_exc()
         sys.exit(1)

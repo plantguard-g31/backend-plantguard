@@ -29,7 +29,7 @@ logger = logging.getLogger("plantguard")
 # ─────────────────────────────────────────────────────────────
 app = FastAPI(
     title="PlantGuard API",
-    version="3.1", # Updated to match SRS v3.1
+    version="1.0.0",
     description="Secure backend for real-time plant disease diagnosis with expert-verified treatments",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -101,7 +101,7 @@ def health_check():
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "3.1"
+        "version": "1.0.0"
     }
 
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)

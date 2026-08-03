@@ -8,16 +8,6 @@ logger = logging.getLogger("plantguard.errors")
 # ─────────────────────────────────────────────────────────────
 # MASTER DICTIONARY: ALL FARMER-FRIENDLY BILINGUAL MESSAGES
 # ─────────────────────────────────────────────────────────────
-# Every error in PlantGuard is mapped here.
-# Format: {"error_code": "HTTP_CODE", "message_en": "...", "message_ne": "..."}
-# 
-# DESIGN PRINCIPLES:
-# 1. Plain language - farmers are not developers
-# 2. Actionable - tells them WHAT to do, not just what went wrong
-# 3. Bilingual - English + Nepali (Devanagari)
-# 4. Consistent format - Flutter app can parse easily
-# ─────────────────────────────────────────────────────────────
-
 ERROR_MESSAGES = {
     # ── AUTHENTICATION ERRORS ──
     "invalid_credentials": {
@@ -77,16 +67,16 @@ ERROR_MESSAGES = {
         "ne": "फोटो धेरै ठूलो छ। कृपया ५ एमबी भन्दा सानो फोटो छान्नुहोस्।"
     },
     "invalid_magic_bytes": {
-        "en": "This is not a valid photo. Please select a JPEG or PNG image.",
-        "ne": "यो मान्य फोटो होइन। कृपया JPEG वा PNG छवि छान्नुहोस्।"
+        "en": "This is not a valid image. Please take a clear photo of a plant leaf (JPEG or PNG only).",
+        "ne": "यो मान्य छवि होइन। कृपया बिरुवाको पातको स्पष्ट फोटो खिच्नुहोस् (केवल JPEG वा PNG)।"
+    },
+    "file_corrupted": {
+        "en": "This is not a valid image. Please take a clear photo of a plant leaf (JPEG or PNG only).",
+        "ne": "यो मान्य छवि होइन। कृपया बिरुवाको पातको स्पष्ट फोटो खिच्नुहोस् (केवल JPEG वा PNG)।"
     },
     "invalid_file_type": {
         "en": "Invalid file type. Only JPEG and PNG images are allowed.",
         "ne": "अमान्य फाइल प्रकार। केवल JPEG र PNG छविहरू अनुमति छन्।"
-    },
-    "file_corrupted": {
-        "en": "File is corrupted or not a valid image.",
-        "ne": "फाइल बिग्रिएको छ वा मान्य छवि होइन।"
     },
 
     # ── IMAGE QUALITY ERRORS ──
@@ -111,8 +101,8 @@ ERROR_MESSAGES = {
         "ne": "बिरुवाको पात फेला परेन। कृपया फोटोमा पात देखिने गरी खिच्नुहोस्।"
     },
     "invalid_input": {
-        "en": "We could not read this photo. Please try another one.",
-        "ne": "यो फोटो पढ्न सकिएन। कृपया अर्को फोटो प्रयास गर्नुहोस्।"
+        "en": "We could not process this request. Please check your input and try again.",
+        "ne": "हामीले यो अनुरोध प्रक्रिया गर्न सकेनौं। कृपया आफ्नो इनपुट जाँच गरेर फेरि प्रयास गर्नुहोस्।"
     },
 
     # ── RATE LIMITING ──
@@ -176,17 +166,9 @@ ERROR_MESSAGES = {
 # SMART ERROR FORMATTER
 # ─────────────────────────────────────────────────────────────
 def _format_error(status_code: int, detail: str) -> dict:
-    """
-    Converts any error into farmer-friendly bilingual format.
+    # Clean the detail string to ensure exact matching (removes quotes added by FastAPI)
+    detail = str(detail).strip().strip('"').strip("'").lower()
     
-    Args:
-        status_code: HTTP status code (e.g., 422, 401, 500)
-        detail: The error detail string (could be a key like "blurry_image" or a raw message)
-    
-    Returns:
-        dict with error_code, message_en, message_ne
-    """
-    # Check if detail is a known error key
     if detail in ERROR_MESSAGES:
         messages = ERROR_MESSAGES[detail]
         return {
@@ -195,15 +177,27 @@ def _format_error(status_code: int, detail: str) -> dict:
             "message_ne": messages["ne"]
         }
     
-    # If detail is not a known key, use generic message for that status code
+    # 🔥 HARD FALLBACKS: Guarantees the correct message for file errors even if detail is weird
+    if status_code == 413:
+        return {
+            "error_code": "413",
+            "message_en": "Photo is too large. Please select a photo smaller than 5 MB.",
+            "message_ne": "फोटो धेरै ठूलो छ। कृपया ५ एमबी भन्दा सानो फोटो छान्नुहोस्।"
+        }
+    if status_code == 415:
+        return {
+            "error_code": "415",
+            "message_en": "This is not a valid image. Please take a clear photo of a plant leaf (JPEG or PNG only).",
+            "message_ne": "यो मान्य छवि होइन। कृपया बिरुवाको पातको स्पष्ट फोटो खिच्नुहोस् (केवल JPEG वा PNG)।"
+        }
+    
+    # Generic fallback for anything else
     generic_messages = {
         400: {"en": "Invalid request. Please check your input.", "ne": "अमान्य अनुरोध। कृपया तपाईंको इनपुट जाँच गर्नुहोस्।"},
         401: {"en": "Authentication required. Please log in.", "ne": "प्रमाणीकरण आवश्यक छ। कृपया लगइन गर्नुहोस्।"},
         403: {"en": "You do not have permission to do this.", "ne": "तपाईंलाई यो गर्न अनुमति छैन।"},
         404: {"en": "We could not find what you are looking for.", "ne": "तपाईंले खोजेको कुरा फेला परेन।"},
         409: {"en": "This already exists. Please use a different value.", "ne": "यो पहिले नै अवस्थित छ। कृपया फरक मान प्रयोग गर्नुहोस्।"},
-        413: {"en": "File is too large.", "ne": "फाइल धेरै ठूलो छ।"},
-        415: {"en": "Unsupported file type.", "ne": "असमर्थित फाइल प्रकार।"},
         422: {"en": "Invalid input. Please check your details.", "ne": "अमान्य इनपुट। कृपया तपाईंको विवरण जाँच गर्नुहोस्।"},
         429: {"en": "Too many requests. Please wait and try again.", "ne": "धेरै अनुरोधहरू। कृपया कुर्नुहोस् र फेरि प्रयास गर्नुहोस्।"},
         500: {"en": "Something went wrong. Please try again later.", "ne": "केही गल्ती भयो। कृपया पछि फेरि प्रयास गर्नुहोस्।"},
@@ -222,28 +216,13 @@ def _format_error(status_code: int, detail: str) -> dict:
 # SMART PYDANTIC ERROR DETECTOR
 # ─────────────────────────────────────────────────────────────
 def _detect_pydantic_error_key(errors: list) -> str:
-    """
-    Analyzes Pydantic validation errors and returns the appropriate error key.
-    
-    This is the CRITICAL FIX: Instead of always returning "invalid_input" for all
-    422 errors, we look at the actual error message to determine which feature
-    the error came from.
-    
-    Args:
-        errors: List of Pydantic error dicts from RequestValidationError
-    
-    Returns:
-        Error key string (e.g., "password_mismatch", "invalid_email", "invalid_language")
-    """
     if not errors:
         return "invalid_input"
     
-    # Get the first error (most relevant)
     first_error = errors[0]
     error_msg = str(first_error.get("msg", "")).lower()
     error_loc = str(first_error.get("loc", [])).lower()
     
-    # Password-related errors
     if "password" in error_loc or "password" in error_msg:
         if "match" in error_msg or "do not match" in error_msg:
             return "password_mismatch"
@@ -252,89 +231,37 @@ def _detect_pydantic_error_key(errors: list) -> str:
         else:
             return "password_too_short"
     
-    # Email-related errors
     if "email" in error_loc or "email" in error_msg:
-        if "invalid" in error_msg or "format" in error_msg:
-            return "invalid_email"
-        else:
-            return "invalid_email"
+        return "invalid_email"
     
-    # Language-related errors
     if "language" in error_loc or "language" in error_msg or "lang" in error_loc:
         return "invalid_language"
     
-    # Crop type errors
     if "crop" in error_loc or "crop" in error_msg:
         return "invalid_crop_type"
     
-    # Name-related errors
-    if "name" in error_loc and "length" in error_msg:
-        return "invalid_input"  # Generic validation error
-    
-    # Default fallback
     return "invalid_input"
 
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLER REGISTRATION
 # ─────────────────────────────────────────────────────────────
 def register_error_handlers(app):
-    """
-    Registers global error handlers for the FastAPI app.
-    Every error is converted to farmer-friendly bilingual format.
-    """
-    
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
-        """
-        Handles all HTTPException raised by endpoints.
-        Converts technical errors to farmer-friendly messages.
-        """
         error_response = _format_error(exc.status_code, str(exc.detail))
-        
-        # Log the error for debugging (never shown to farmer)
         logger.warning(f"HTTP {exc.status_code}: {exc.detail} | Path: {request.url.path}")
-        
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=error_response
-        )
+        return JSONResponse(status_code=exc.status_code, content=error_response)
     
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        """
-        Handles Pydantic validation errors (e.g., invalid email format, passwords don't match).
-        
-        CRITICAL FIX: This now detects which feature the error came from and returns
-        the appropriate message instead of always showing "We could not read this photo."
-        """
         errors = exc.errors()
-        
-        # Detect the specific error type
         error_key = _detect_pydantic_error_key(errors)
-        
-        # Get the appropriate message
         error_response = _format_error(422, error_key)
-        
-        # Log the full validation error for debugging
         logger.warning(f"Validation Error: {errors} | Path: {request.url.path}")
-        
-        return JSONResponse(
-            status_code=422,
-            content=error_response
-        )
+        return JSONResponse(status_code=422, content=error_response)
     
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
-        """
-        Catches ALL unexpected errors (database crashes, AI model failures, etc.)
-        This is the LAST line of defense - prevents farmers from seeing raw Python tracebacks.
-        """
         error_response = _format_error(500, "server_error")
-        
-        # Log the full error with traceback for debugging
         logger.error(f"UNHANDLED ERROR: {type(exc).__name__}: {str(exc)} | Path: {request.url.path}", exc_info=True)
-        
-        return JSONResponse(
-            status_code=500,
-            content=error_response
-        )
+        return JSONResponse(status_code=500, content=error_response)
