@@ -27,10 +27,10 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,              # Set to True later for debugging SQL queries
     pool_pre_ping=True,      # Auto-reconnect on dropped connections
-    pool_size=20,            # ✅ NEW: Keep 20 connections ready
-    max_overflow=10,         # ✅ NEW: Allow 10 more under heavy load
+    pool_size=2,            # ✅ NEW: Keep 20 connections ready
+    max_overflow=3,         # ✅ NEW: Allow 10 more under heavy load
     pool_timeout=30,         # ✅ NEW: Wait 30s for connection
-    pool_recycle=1800,       # ✅ NEW: Recycle every 30 minutes
+    pool_recycle=300,       # ✅ NEW: Recycle every 30 minutes
     connect_args=connect_args # Automatically handles Supabase SSL
 )
 
