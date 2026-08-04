@@ -8,9 +8,10 @@ settings = get_settings()
 # ─────────────────────────────────────────────────────────────
 # Supabase requires SSL for remote internet connections. 
 # Local PostgreSQL does not. This automatically detects which one you are using.
-connect_args = {}
-if "supabase" in settings.DATABASE_URL:
-    connect_args["ssl"] = "require"
+connect_args = {
+    "ssl": "require",
+    "statement_cache_size": 0,
+}
 
 # ─────────────────────────────────────────────────────────────
 # 1. ENGINE: Connection pool to PostgreSQL
@@ -25,7 +26,6 @@ if "supabase" in settings.DATABASE_URL:
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,              # Set to True later for debugging SQL queries
-    connect_args={"statement_cache_size":0},
     pool_pre_ping=True,      # Auto-reconnect on dropped connections
     pool_size=20,            # ✅ NEW: Keep 20 connections ready
     max_overflow=10,         # ✅ NEW: Allow 10 more under heavy load
